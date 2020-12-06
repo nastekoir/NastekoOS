@@ -14,11 +14,62 @@ namespace NastekoOS
         static int groupCount = GetGroups().Count;
         static void Main(string[] args)
         {
-            currentUser = enter("root", "toor");
-            creategroup("groupNasteko");
-            createuser("nastekoir", "nastekoir");
-            createuser("nastekoom", "nastekoom");
-            deletegroup("groupNasteko");
+            Console.WriteLine("Добро пожаловать в NastekoOS\n" +
+                "Для помощи по командам используйте команду help");
+            while (true)
+            {
+                string cmd = Console.ReadLine();
+                string[] parameters = cmd.Split(' ');
+                switch (parameters[0])
+                {
+                    case "help":
+                        help();
+                        break;
+                    case "enter":
+                        if (parameters.Length == 3)
+                            currentUser = enter(parameters[1], parameters[2]);
+                        else
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        break;
+                    case "createuser":
+                        if (parameters.Length == 3)
+                            createuser(parameters[1], parameters[2]);
+                        else
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        break;
+                    case "deleteuser":
+                        if (parameters.Length == 3)
+                            deleteuser(parameters[1], parameters[2]);
+                        else
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        break;
+                    case "creategroup":
+                        if (parameters.Length == 2)
+                            creategroup(parameters[1]);
+                        else
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        break;
+                    case "deletegroup":
+                        if (parameters.Length == 2)
+                            deletegroup(parameters[1]);
+                        else
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        break;
+                    case "exit":
+                        exit();
+                        break;
+                    case "clear":
+                        Console.Clear();
+                        break;
+                    case "off":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Console.WriteLine("Ошибка синтаксиса, используйте команду help для помощи");
+                        break;
+                }
+            }
+            
         }
 
         static User enter(string username, string pass)
@@ -27,7 +78,7 @@ namespace NastekoOS
             {
                 string name = new string(user.Username);
                 string pas = new string(user.Password);
-                if (username == name.Substring(0,  name.IndexOf("\0")) && pass == pas.Substring(0,name.IndexOf("\0")))
+                if (username == name.Substring(0,  name.IndexOf("\0")) && pass == pas.Substring(0,pas.IndexOf("\0")))
                 {
                     Console.WriteLine($"Вы вошли под пользователем {username}");
                     return user;
@@ -37,6 +88,16 @@ namespace NastekoOS
             return null;
         }
 
+        static void exit()
+        {
+            if (currentUser != null)
+            {
+                string name = new string(currentUser.Username);
+                Console.WriteLine($"Вы вышли из пользователя {name.Substring(0, name.IndexOf("\0"))}");
+                currentUser = null;
+            }
+            
+        }
         static void createuser(string username, string pass)
         {
             if (userCount == 100)
@@ -75,6 +136,7 @@ namespace NastekoOS
             }
             userCount++;
             users = GetUsers();
+            Console.WriteLine($"Пользователь {username} создан");
         }
 
         static void deleteuser(string username, string pass)
@@ -89,11 +151,12 @@ namespace NastekoOS
                 string name = new string(user.Username);
                 string pas = new string(user.Password);
                 
-                if (username == name.Substring(0, name.IndexOf("\0")) && pass == pas.Substring(0, name.IndexOf("\0")))
+                if (username == name.Substring(0, name.IndexOf("\0")) && pass == pas.Substring(0, pas.IndexOf("\0")))
                 {
                     users.Remove(user);
                     UpdateUsers();
                     users = GetUsers();
+                    userCount = GetUsers().Count;
                     Console.WriteLine($"Пользователь {username} удалён");
                     return;
                 }
@@ -185,6 +248,7 @@ namespace NastekoOS
             });
             UpdateGroups();
             groups = GetGroups();
+            Console.WriteLine($"Группа {groupName} создана");
         }
         static void deletegroup(string groupName)
         {
@@ -226,6 +290,7 @@ namespace NastekoOS
                     groups.Remove(group);
                     UpdateGroups();
                     groups = GetGroups();
+                    groupCount = GetGroups().Count;
                     Console.WriteLine($"Группа {groupName} удалена");
                     return;
                 }
@@ -280,6 +345,11 @@ namespace NastekoOS
                     br.BaseStream.Write(new Group().GetBytes());
                 }
             }
+        }
+
+        static void help()
+        {
+            
         }
     }
 }
