@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
 namespace Formatter
@@ -14,7 +15,15 @@ namespace Formatter
             FreeBlocks freeBlocks = new FreeBlocks();
             for (int i = 0; i < freeBlocks.FreeBlockList.Length; i++)
             {
-                freeBlocks.FreeBlockList[i] = i+1;
+                if (i < 28)
+                {
+                    freeBlocks.FreeBlockList[i] = 0;
+                }
+                else
+                {
+                    freeBlocks.FreeBlockList[i] = i + 1;
+                }
+                
             }
             
             Inode[] inodes = new Inode[512];
@@ -24,7 +33,7 @@ namespace Formatter
             }
             User[] users = new User[100];
             Group[] groups = new Group[20];
-            RootDirectory rootDirectory = new RootDirectory();
+            
             users[0] = new User()
             {
                 UserID = 1,
@@ -45,6 +54,27 @@ namespace Formatter
             {
                 groups[i] = new Group();
             }
+
+            RootDirectory rootDirectory = new RootDirectory()
+            {
+                Name = "NastekoOS       ".ToCharArray(),
+                Extention = new char[] { ' ', ' ', ' ', ' ' },
+                InodeNumber = 1,
+                directories = new List<RootDirectory>(),
+            };
+            rootDirectory.directories.Add(new RootDirectory()
+            {
+                Name = "rootGroup       ".ToCharArray(),
+                Extention = new char[] { ' ', ' ', ' ', ' ' },
+                InodeNumber = 1,
+            });
+            rootDirectory.directories[0].directories.Add(new RootDirectory()
+            {
+                Name = "root            ".ToCharArray(),
+                Extention = new char[] { ' ', ' ', ' ', ' ' },
+                InodeNumber = 2,
+            });
+            
 
             FileInfo fileInfo = new FileInfo("NastekoFS");
             using(BinaryWriter bw=new BinaryWriter(fileInfo.Create(), Encoding.Unicode))
@@ -69,7 +99,10 @@ namespace Formatter
                     bw.Write(group.GetBytes());
                     groupsSize += group.GetBytes().Length;
                 }
+                
                 bw.Write(rootDirectory.GetBytes());
+                
+                
                 bw.Write(new byte[diskSize - superblock.GetBytes().Length - freeBlocks.GetBytes().Length - inodesSize - usersSize - groupsSize - rootDirectory.GetBytes().Length]);
             }
             Console.WriteLine("Форматирование завершено!");
@@ -98,7 +131,7 @@ namespace Formatter
             return data;
         }
     }
-    class FreeBlocks
+    public class FreeBlocks
     {
         public int[] FreeBlockList = new int[512];
         
@@ -115,14 +148,14 @@ namespace Formatter
         }
     }
     
-    class Inode
+    public class Inode
     {
-        int FileSize;
-        bool[] FileRights = new bool[8];
-        int UserID;
-        int GroupID;
-        char[] Date = new char[10];
-        int[] BlockArray = new int[13];
+        public int FileSize;
+        public bool[] FileRights = new bool[8];
+        public int UserID;
+        public int GroupID;
+        public char[] Date = new char[10];
+        public int[] BlockArray = new int[13];
         public byte[] GetBytes()
         {
             byte[] data = new byte[92];
@@ -202,16 +235,19 @@ namespace Formatter
             return data;
         }
     }
-
-    class RootDirectory
+    [Serializable]
+    public class RootDirectory
     {
         public char[] Name = new char[16];
         public char[] Extention = new char[4];
-        public int InodeNumber;
-        
+        public int InodeNumber=0;
+        public List<RootDirectory> directories = new List<RootDirectory>();
         public byte[] GetBytes()
         {
-            byte[] data = new byte[44];
+            BinaryFormatter bf = new BinaryFormatter();
+            MemoryStream ms = new MemoryStream();
+            bf.Serialize(ms, directories);
+            byte[] data = new byte[44+ms.Length];
             int index = 0;
             foreach (char c in Name)
             {
@@ -224,6 +260,10 @@ namespace Formatter
                 index += BitConverter.GetBytes(c).Length;
             }
             BitConverter.GetBytes(InodeNumber).CopyTo(data, index);
+            index += BitConverter.GetBytes(InodeNumber).Length;
+            ms.ToArray().CopyTo(data, index);
+            
+            
             return data;
         }
     }
