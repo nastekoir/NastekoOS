@@ -21,6 +21,8 @@ namespace NastekoOS
         static RootDirectory rootPath;
         static RootDirectory curPath;
         static RootDirectory[] notes = new RootDirectory[473];
+        static RootDirectory prPath;
+        static string preiousPath;
         static void Main(string[] args)
         {
             Console.WriteLine("Добро пожаловать в NastekoOS\n" +
@@ -62,10 +64,10 @@ namespace NastekoOS
                             Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
                         break;
                     case "createuser":
-                        if (parameters.Length == 3)
+                        if (parameters.Length == 4)
                         {
-                            createuser(parameters[1], parameters[2]);
-                            curPath = rootPath.directories[0].directories[0].directories[0]; 
+                            createuser(parameters[1], parameters[2],Convert.ToInt32(parameters[3]));
+                            curPath = rootPath.directories[0].directories[0].directories[Convert.ToInt32(parameters[3])-2]; 
                             createdir(parameters[1]);
                         }
                             
@@ -145,10 +147,50 @@ namespace NastekoOS
                             Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
                         }
                         break;
+                    case "deletedir":
+                        if (parameters.Length == 2)
+                        {
+                            deletedir(parameters[1]);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        }
+                        break;
                     case "changedir":
                         if (parameters.Length == 2)
                         {
                             changedir(parameters[1]);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        }
+                        break;
+                    case "rename":
+                        if (parameters.Length == 3)
+                        {
+                            rename(parameters[1],parameters[2]);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        }
+                        break;
+                    case "move":
+                        if (parameters.Length == 3)
+                        {
+                            move(parameters[1], parameters[2]);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Неверное количество параметров, используйте команду help для помощи");
+                        }
+                        break;
+                    case "chmod":
+                        if (parameters.Length == 3)
+                        {
+                            chmod(parameters[1], parameters[2]);
                         }
                         else
                         {
@@ -197,14 +239,24 @@ namespace NastekoOS
         {
             
                 RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
+            if (freeInodes[file.InodeNumber].FileRights[6] == true)
+            {
+                Console.WriteLine("Файл доступен только для чтения");
+            }
+            else if ((currentUser.UserID== freeInodes[file.InodeNumber].UserID && freeInodes[file.InodeNumber].FileRights[1]==true)
+                ||(currentUser.GroupID== freeInodes[file.InodeNumber].GroupID && freeInodes[file.InodeNumber].FileRights[4] == true))
+            {
+                string text = Console.ReadLine();
+                int num = freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]];
+                using (BinaryWriter bw = new BinaryWriter(File.OpenWrite(fsPath)))
                 {
-                    string text = Console.ReadLine();
-                    int num = freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]];
-                    using(BinaryWriter bw =new BinaryWriter(File.OpenWrite(fsPath)))
-                    {
-                        bw.BaseStream.Position = 78412 + 2048 * num;
-                        bw.Write(text);
-                    }
+                    bw.BaseStream.Position = 78412 + 2048 * num;
+                    bw.Write(text);
+                }
+            }
+            else
+                {
+                Console.WriteLine("Недостаточно прав");
                 }
             
         }
@@ -212,8 +264,8 @@ namespace NastekoOS
         {
             RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
                     int num = freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]];
-                    if(currentUser.UserID==freeInodes[file.InodeNumber].UserID)
-                        if (freeInodes[file.InodeNumber].FileRights[0] == true)
+                    if((currentUser.UserID==freeInodes[file.InodeNumber].UserID&& freeInodes[file.InodeNumber].FileRights[0] == true)
+                || (currentUser.GroupID == freeInodes[file.InodeNumber].GroupID && freeInodes[file.InodeNumber].FileRights[3] == true))
                         {
                             using (BinaryReader br = new BinaryReader(File.OpenRead(fsPath)))
                             {
@@ -221,6 +273,22 @@ namespace NastekoOS
                                 Console.WriteLine(br.ReadString());
                             }
                         }
+            else
+            {
+                Console.WriteLine("Недостаточно прав");
+            }
+        }
+        static void rename(string oldname, string newname)
+        {
+            RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == oldname).First();
+            int num = freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]];
+            while (newname.Length != 16)
+            {
+                newname += " ";
+            }
+
+            curPath.directories[curPath.directories.IndexOf(file)].Name = newname.ToCharArray();
+            UpdateNotes();
         }
         static void exit()
         {
@@ -230,10 +298,11 @@ namespace NastekoOS
                 Console.WriteLine($"Вы вышли из пользователя {name.Substring(0, name.IndexOf("\0"))}");
                 currentUser = null;
                 currentPath = "NastekoOS/";
+                curPath = rootPath;
             }
             
         }
-        static void createuser(string username, string pass)
+        static void createuser(string username, string pass, int groupid)
         {
             if (userCount == 100)
             {
@@ -259,7 +328,7 @@ namespace NastekoOS
                 User newUser = new User
                 {
                     UserID = users[users.Count-1].UserID+1,
-                    GroupID = 2,
+                    GroupID = groupid,
                     Username = username.ToCharArray(),
                     Password = pass.ToCharArray()
                 };
@@ -288,18 +357,19 @@ namespace NastekoOS
                 
                 if (username == name.Substring(0, name.IndexOf("\0")) && pass == pas.Substring(0, pas.IndexOf("\0")))
                 {
+                    RootDirectory tmpPath = curPath;
+                    RootDirectory dir = curPath.directories[user.GroupID - 2];
+                    curPath = dir;
+                    RootDirectory dirPath=dir.directories.Where(dir => new string(dir.Name).Trim() == new string(user.Username).Trim('\0')).First();
+                    deletedir(new string(dirPath.Name).Trim());
+                    curPath = tmpPath;
                     users.Remove(user);
                     UpdateUsers();
                     users = GetUsers();
                     userCount = GetUsers().Count;
                     Console.WriteLine($"Пользователь {username} удалён");
-                    foreach (RootDirectory note in notes)
-                    {
-                        if (freeInodes[note.InodeNumber].UserID == user.UserID)
-                        {
-                            deletefile(new string(note.Name).Trim());
-                        }
-                    }
+
+                    
                     return;
                 }
             }
@@ -418,6 +488,7 @@ namespace NastekoOS
             foreach (Group group in groups)
             {
                 string name = new string(group.GroupName);
+                
                 var tmpListUsers = new List<User>(users);
                 if (name.Substring(0, name.IndexOf("\0")) == groupName)
                 {
@@ -430,6 +501,8 @@ namespace NastekoOS
                             deleteuser(nameUser.Substring(0, nameUser.IndexOf("\0")), pas.Substring(0, pas.IndexOf("\0")));
                         }
                     }
+                    RootDirectory dirname = curPath.directories.Where(dir => new string(dir.Name).Trim() == new string(group.GroupName).Trim('\0')).First();
+                    deletedir(new string(dirname.Name).Trim());
                     groups.Remove(group);
                     UpdateGroups();
                     groups = GetGroups();
@@ -530,25 +603,35 @@ namespace NastekoOS
 
         static void deletefile(string filename)
         {
-            curPath = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
+            RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
 
             //note.Name = new char[16];
             //note.InodeNumber = 0;
-            freeBlocks.FreeBlockList[freeInodes[curPath.InodeNumber].BlockArray[0]-1]= freeInodes[curPath.InodeNumber].BlockArray[0];
+            freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]-1]= freeInodes[file.InodeNumber].BlockArray[0];
             freeInodes[curPath.InodeNumber] = new Inode();
-            curPath.InodeNumber = 0;
-            
+            curPath.directories[curPath.directories.IndexOf(file)].InodeNumber = 0;
+            curPath.directories.Remove(file);
             UpdateBlocks();
-            UpdateInodes();
-            
+            UpdateInodes();   
             UpdateNotes();
+        }
+        static void chmod(string filename, string rights)
+        {
+            RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
+            char[] right = rights.ToCharArray();
             
-            GetRootDirectory();
-            
-            currentPath = "NastekoOS/";
-            
-            
-            
+            for (int i = 0; i < right.Length; i++)
+            {
+                if (right[i] == '-')
+                {
+                    freeInodes[file.InodeNumber].FileRights[i] = false;
+                }
+                else
+                {
+                    freeInodes[file.InodeNumber].FileRights[i] = true;
+                }
+            }
+            UpdateInodes();
         }
         static void UpdateInodes()
         {
@@ -664,20 +747,64 @@ namespace NastekoOS
             UpdateInodes();
             UpdateNotes();
         }
-        
+        static void deletedir(string dirname)
+        {
+            RootDirectory dir = curPath.directories.Where(dir => new string(dir.Name).Trim() == dirname).First();
+            RootDirectory tmpDir = curPath;
+            for (int i = dir.directories.Count-1; i >= 0; i--)
+            {
+                
+                curPath = dir;
+                if (freeInodes[dir.directories[i].InodeNumber].FileRights[7] == true)
+                {
+                    deletedir(new string(dir.directories[i].Name).Trim());
+                }
+                else
+                {
+                    deletefile(new string(dir.directories[i].Name).Trim());
+                }
+            }
+
+            curPath = tmpDir;
+            //freeBlocks.FreeBlockList[freeInodes[dir.InodeNumber].BlockArray[0] - 1] = freeInodes[dir.InodeNumber].BlockArray[0];
+            freeInodes[dir.InodeNumber] = new Inode();
+            curPath.directories[curPath.directories.IndexOf(dir)].InodeNumber = 0;
+            curPath.directories.Remove(dir);
+            UpdateBlocks();
+            UpdateInodes();
+            UpdateNotes();
+
+        }
         static void changedir(string dirname)
         {
             if (dirname == "..")
             {
+                curPath = prPath;
+                currentPath = preiousPath;
+            }
+            else if (dirname=="/")
+            {
                 curPath = rootPath;
-                currentPath = "NastekoOS/";
+                currentPath = "Nasteko/";
             }
             else
             {
+                prPath = curPath;
+                preiousPath = currentPath;
                 curPath = curPath.directories.Where(dir => new string(dir.Name).Trim() == dirname).First();
                 currentPath += dirname + "/";
             }
             
+        }
+        static void move(string filename,string path)
+        {
+            RootDirectory file = curPath.directories.Where(file => new string(file.Name).Trim() == filename).First();
+            curPath.directories.Remove(file);
+            
+            changedir(path);
+            curPath.directories.Add(file);
+            //changedir("..");
+            UpdateNotes();
         }
         static void UpdateNotes()
         {
@@ -727,8 +854,8 @@ namespace NastekoOS
             foreach (RootDirectory directory in curPath.directories)
             {
                 Console.Write(new string(directory.Name).Trim());
-                char[] rights = new char[] { 'r', 'w', 'x', 'r', 'w', 'x', 'f', 'c', 'R' };
-                //Console.Write();
+                char[] rights = new char[] { 'r', 'w', 'x', 'r', 'w', 'x', 'R', 'd' };
+                Console.Write(' ');
                 
                 
                 for (int i = 0; i < freeInodes[directory.InodeNumber].FileRights.Length; i++)
@@ -736,21 +863,10 @@ namespace NastekoOS
 
                     if (freeInodes[directory.InodeNumber].FileRights[i] == true)
                     {
-                        Console.Write(' ');
                         Console.Write(rights[i]);
-                        Console.Write(' ');
-                        if (i == 7)
-                        {
-                            Console.Write(rights[7]);
-                        }
                     }
                     else
                     {
-                        if (i == 6)
-                        {
-                            Console.Write(rights[6]);
-                        }
-                        
                         Console.Write('-');
                     }
                 }
