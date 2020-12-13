@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 using Formatter;
 namespace NastekoOS
 {
@@ -246,7 +247,9 @@ namespace NastekoOS
             else if ((currentUser.UserID== freeInodes[file.InodeNumber].UserID && freeInodes[file.InodeNumber].FileRights[1]==true)
                 ||(currentUser.GroupID== freeInodes[file.InodeNumber].GroupID && freeInodes[file.InodeNumber].FileRights[4] == true))
             {
+                Console.InputEncoding = Encoding.Unicode;
                 string text = Console.ReadLine();
+                text = UnicodeStr2HexStr(text);
                 int num = freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]];
                 using (BinaryWriter bw = new BinaryWriter(File.OpenWrite(fsPath)))
                 {
@@ -270,7 +273,7 @@ namespace NastekoOS
                             using (BinaryReader br = new BinaryReader(File.OpenRead(fsPath)))
                             {
                                 br.BaseStream.Position = 78412 + 2048 * num;
-                                Console.WriteLine(br.ReadString());
+                                Console.WriteLine(HexBytes2UnicodeStr(HexStr2HexBytes(br.ReadString())));
                             }
                         }
             else
@@ -565,7 +568,16 @@ namespace NastekoOS
 
         static void createfile(string filename)
         {
-
+            
+            foreach (RootDirectory f in curPath.directories)
+            {
+                if(new string(f.Name).Trim() == filename)
+                {
+                    Console.WriteLine("Такой файл существует");
+                    return;
+                }
+            }
+            
             char[] date = new char[10];
             date = DateTime.Now.ToString().Take(10).ToArray();
             int freeInodeIndex = GetFreeInode();
@@ -608,7 +620,7 @@ namespace NastekoOS
             //note.Name = new char[16];
             //note.InodeNumber = 0;
             freeBlocks.FreeBlockList[freeInodes[file.InodeNumber].BlockArray[0]-1]= freeInodes[file.InodeNumber].BlockArray[0];
-            freeInodes[curPath.InodeNumber] = new Inode();
+            freeInodes[file.InodeNumber] = new Inode();
             curPath.directories[curPath.directories.IndexOf(file)].InodeNumber = 0;
             curPath.directories.Remove(file);
             UpdateBlocks();
@@ -878,7 +890,43 @@ namespace NastekoOS
         }
         static void help()
         {
-            
+            using(StreamReader sr=new StreamReader(File.OpenRead("help.txt")))
+            {
+                Console.WriteLine(sr.ReadToEnd());
+            }
+        }
+        public static String UnicodeStr2HexStr(String strMessage)
+        {
+            byte[] ba = Encoding.BigEndianUnicode.GetBytes(strMessage);
+            String strHex = BitConverter.ToString(ba);
+            strHex = strHex.Replace("-", "");
+            return strHex;
+        }
+
+        public static String HexStr2UnicodeStr(String strHex)
+        {
+            byte[] ba = HexStr2HexBytes(strHex);
+            return HexBytes2UnicodeStr(ba);
+        }
+
+        
+        public static String HexBytes2UnicodeStr(byte[] ba)
+        {
+            var strMessage = Encoding.BigEndianUnicode.GetString(ba, 0, ba.Length);
+            return strMessage;
+        }
+
+        public static byte[] HexStr2HexBytes(String strHex)
+        {
+            strHex = strHex.Replace(" ", "");
+            int nNumberChars = strHex.Length / 2;
+            byte[] aBytes = new byte[nNumberChars];
+            using (var sr = new StringReader(strHex))
+            {
+                for (int i = 0; i < nNumberChars; i++)
+                    aBytes[i] = Convert.ToByte(new String(new char[2] { (char)sr.Read(), (char)sr.Read() }), 16);
+            }
+            return aBytes;
         }
     }
 }
